@@ -52,8 +52,39 @@ function trimVideo(inputPath, outputPath, startTime, duration) {
   ]);
 }
 
+function splitVideo(inputPath, firstOutputPath, secondOutputPath, splitTime) {
+  return Promise.all([
+    runFFmpeg([
+      "-i",
+      inputPath,
+      "-t",
+      String(splitTime),
+      "-c:v",
+      "libx264",
+      "-c:a",
+      "aac",
+      "-y",
+      firstOutputPath,
+    ]),
+
+    runFFmpeg([
+      "-i",
+      inputPath,
+      "-ss",
+      String(splitTime),
+      "-c:v",
+      "libx264",
+      "-c:a",
+      "aac",
+      "-y",
+      secondOutputPath,
+    ]),
+  ]);
+}
+
 module.exports = {
   runFFmpeg,
   runFFprobe,
   trimVideo,
+  splitVideo,
 };
