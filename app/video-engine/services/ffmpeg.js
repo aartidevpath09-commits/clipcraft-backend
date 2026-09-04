@@ -82,9 +82,44 @@ function splitVideo(inputPath, firstOutputPath, secondOutputPath, splitTime) {
   ]);
 }
 
+function reorderVideos(inputPaths, outputPath) {
+  if (!Array.isArray(inputPaths) || inputPaths.length === 0) {
+    return Promise.reject(new Error("At least one video is required"));
+  }
+
+  const inputs = [];
+
+  inputPaths.forEach((inputPath) => {
+    inputs.push("-i", inputPath);
+  });
+
+  const filterInputs = inputPaths
+    .map((_, index) => `[${index}:v:0][${index}:a:0]`)
+    .join("");
+
+  const filterComplex = `${filterInputs}concat=n=${inputPaths.length}:v=1:a=1[outv][outa]`;
+
+  return runFFmpeg([
+    ...inputs,
+    "-filter_complex",
+    filterComplex,
+    "-map",
+    "[outv]",
+    "-map",
+    "[outa]",
+    "-c:v",
+    "libx264",
+    "-c:a",
+    "aac",
+    "-y",
+    outputPath,
+  ]);
+}
+
 module.exports = {
   runFFmpeg,
   runFFprobe,
   trimVideo,
   splitVideo,
+  reorderVideos,
 };
