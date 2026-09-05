@@ -4,10 +4,13 @@ require("dotenv").config();
 
 const pool = require("./config/db");
 
+const videoRoutes = require("./video-engine/routes");
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use("/api/v1/video", videoRoutes);
 
 app.get("/", (req, res) => {
   res.json({
