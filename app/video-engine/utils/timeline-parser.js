@@ -22,6 +22,41 @@ function parseTimeline(timeline) {
   }));
 }
 
+function getVideoPathsFromTimeline(timeline, assetMap) {
+  const clips = parseTimeline(timeline);
+
+  return clips.map((clip) => {
+    const videoPath = assetMap[clip.assetId];
+
+    if (!videoPath) {
+      throw new Error(`Video asset not found: ${clip.assetId}`);
+    }
+
+    return videoPath;
+  });
+}
+
+function getTimelineClips(timeline, assetMap) {
+  const clips = parseTimeline(timeline);
+
+  return clips.map((clip) => {
+    const videoPath = assetMap[clip.assetId];
+
+    if (!videoPath) {
+      throw new Error(`Video asset not found: ${clip.assetId}`);
+    }
+
+    return {
+      assetId: clip.assetId,
+      inputPath: videoPath,
+      start: clip.start,
+      duration: clip.duration,
+    };
+  });
+}
+
 module.exports = {
   parseTimeline,
+  getVideoPathsFromTimeline,
+  getTimelineClips,
 };

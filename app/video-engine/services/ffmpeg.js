@@ -116,23 +116,32 @@ function reorderVideos(inputPaths, outputPath) {
   ]);
 }
 
-function renderTimeline(inputPaths, outputPath) {
-  if (!Array.isArray(inputPaths) || inputPaths.length === 0) {
-    return Promise.reject(new Error("Timeline must contain at least one video"));
+function renderTimeline(clips, outputPath) {
+  if (!Array.isArray(clips) || clips.length === 0) {
+    return Promise.reject(new Error("Timeline must contain at least one clip"));
   }
 
   const inputs = [];
 
-  inputPaths.forEach((inputPath) => {
-    inputs.push("-i", inputPath);
+  clips.forEach((clip) => {
+    inputs.push("-i", clip.inputPath);
   });
 
-  const filterInputs = inputPaths
-    .map((_, index) => `[${index}:v:0][${index}:a:0]`)
+  const filterInputs = clips
+    .map(
+      (_, index) =>
+        `[${index}:v:0]trim=duration=${clips[index].duration},setpts=PTS-STARTPTS[v${index}];` +
+        `[${index}:a:0]atrim=duration=${clips[index].duration},asetpts=PTS-STARTPTS[a${index}]`
+    )
+    .join(";");
+
+  const concatInputs = clips
+    .map((_, index) => `[v${index}][a${index}]`)
     .join("");
 
   const filterComplex =
-    `${filterInputs}concat=n=${inputPaths.length}:v=1:a=1[outv][outa]`;
+    `${filterInputs};` +
+    `${concatInputs}concat=n=${clips.length}:v=1:a=1[outv][outa]`;
 
   return runFFmpeg([
     ...inputs,
@@ -153,6 +162,39 @@ function renderTimeline(inputPaths, outputPath) {
   ]);
 }
 
+function addImageOverlay(
+  videoPath,
+  imagePath,
+  outputPath,
+  x = 0,
+  y = 0,
+  opacity = 1
+) {
+  const safeOpacity = Math.max(0, Math.min(1, Number(opacity)));
+
+  return runFFmpeg([
+    "-i",
+    videoPath,
+    "-i",
+    imagePath,
+    "-filter_complex",
+    `[1:v]format=rgba,colorchannelmixer=aa=${safeOpacity}[overlay];` +
+      `[0:v][overlay]overlay=${x}:${y}:format=auto[outv]`,
+    "-map",
+    "[outv]",
+    "-map",
+    "0:a?",
+    "-c:v",
+    "libx264",
+    "-c:a",
+    "aac",
+    "-movflags",
+    "+faststart",
+    "-y",
+    outputPath,
+  ]);
+}
+
 module.exports = {
   runFFmpeg,
   runFFprobe,
@@ -160,4 +202,5 @@ module.exports = {
   splitVideo,
   reorderVideos,
   renderTimeline,
+  addImageOverlay,
 };
