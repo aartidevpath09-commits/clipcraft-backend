@@ -19,6 +19,11 @@ function parseTimeline(timeline) {
     assetId: clip.assetId,
     start: clip.start,
     duration: clip.duration,
+    transform: clip.transform || {
+      scale: 1,
+      x: 0,
+      y: 0,
+    },
   }));
 }
 
@@ -51,6 +56,7 @@ function getTimelineClips(timeline, assetMap) {
       inputPath: videoPath,
       start: clip.start,
       duration: clip.duration,
+      transform: clip.transform ,
     };
   });
 }

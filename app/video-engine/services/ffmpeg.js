@@ -127,21 +127,45 @@ function renderTimeline(clips, outputPath) {
     inputs.push("-i", clip.inputPath);
   });
 
-  const filterInputs = clips
-    .map(
-      (_, index) =>
-        `[${index}:v:0]trim=duration=${clips[index].duration},setpts=PTS-STARTPTS[v${index}];` +
-        `[${index}:a:0]atrim=duration=${clips[index].duration},asetpts=PTS-STARTPTS[a${index}]`
-    )
-    .join(";");
+  const filterParts = [];
+
+  clips.forEach((clip, index) => {
+    const scale = clip.transform?.scale ?? 1;
+    const x = clip.transform?.x ?? 0;
+    const y = clip.transform?.y ?? 0;
+    const duration = clip.duration;
+
+    const safeScale = Math.max(0.1, Number(scale));
+    const safeX = Number(x);
+    const safeY = Number(y);
+
+    filterParts.push(
+      `[${index}:v:0]` +
+        `trim=duration=${duration},` +
+        `setpts=PTS-STARTPTS,` +
+        `scale=iw*${safeScale}:ih*${safeScale},` +
+        `pad=478:850:${safeX}:${safeY}:color=black` +
+        `[v${index}]`
+    );
+
+    filterParts.push(
+      `[${index}:a:0]` +
+        `atrim=duration=${duration},` +
+        `asetpts=PTS-STARTPTS` +
+        `[a${index}]`
+    );
+  });
 
   const concatInputs = clips
     .map((_, index) => `[v${index}][a${index}]`)
     .join("");
 
-  const filterComplex =
-    `${filterInputs};` +
-    `${concatInputs}concat=n=${clips.length}:v=1:a=1[outv][outa]`;
+  filterParts.push(
+    `${concatInputs}` +
+      `concat=n=${clips.length}:v=1:a=1[outv][outa]`
+  );
+
+  const filterComplex = filterParts.join(";");
 
   return runFFmpeg([
     ...inputs,
