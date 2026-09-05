@@ -43,7 +43,7 @@ function parseTimeline(timeline) {
     duration: clip.duration,
     volume: clip.volume ?? 1,
     transform: clip.transform || {
-      scale: 0,
+      scale: 1,
       x: 0,
       y: 0,
     },

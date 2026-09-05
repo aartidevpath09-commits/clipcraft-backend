@@ -97,7 +97,8 @@ function reorderVideos(inputPaths, outputPath) {
     .map((_, index) => `[${index}:v:0][${index}:a:0]`)
     .join("");
 
-  const filterComplex = `${filterInputs}concat=n=${inputPaths.length}:v=1:a=1[outv][outa]`;
+  const filterComplex =
+    `${filterInputs}concat=n=${inputPaths.length}:v=1:a=1[outv][outa]`;
 
   return runFFmpeg([
     ...inputs,
@@ -116,9 +117,9 @@ function reorderVideos(inputPaths, outputPath) {
   ]);
 }
 
-function renderTimeline(clips, outputPath) {
+async function renderTimeline(clips, outputPath) {
   if (!Array.isArray(clips) || clips.length === 0) {
-    return Promise.reject(new Error("Timeline must contain at least one clip"));
+    throw new Error("Timeline must contain at least one clip");
   }
 
   const inputs = [];
@@ -129,16 +130,35 @@ function renderTimeline(clips, outputPath) {
 
   const filterParts = [];
 
-  clips.forEach((clip, index) => {
+  for (let index = 0; index < clips.length; index++) {
+    const clip = clips[index];
+
     const scale = clip.transform?.scale ?? 1;
     const x = clip.transform?.x ?? 0;
     const y = clip.transform?.y ?? 0;
-    const duration = clip.duration;
+    const duration = Number(clip.duration);
 
     const safeScale = Math.max(0.1, Number(scale));
     const safeX = Number(x);
     const safeY = Number(y);
+    const volume = Math.max(0, Number(clip.volume ?? 1));
 
+    // Check whether the input video has an audio stream
+    const probeResult = await runFFprobe([
+      "-v",
+      "error",
+      "-select_streams",
+      "a:0",
+      "-show_entries",
+      "stream=index",
+      "-of",
+      "csv=p=0",
+      clip.inputPath,
+    ]);
+
+    const hasAudio = probeResult.stdout.trim() !== "";
+
+    // Video processing
     filterParts.push(
       `[${index}:v:0]` +
         `trim=duration=${duration},` +
@@ -148,15 +168,28 @@ function renderTimeline(clips, outputPath) {
         `[v${index}]`
     );
 
-    filterParts.push(
-      `[${index}:a:0]` +
-        `atrim=duration=${duration},` +
-        `asetpts=PTS-STARTPTS,` +
-        `volume=${Math.max(0, Number(clip.volume ?? 1))}` +
-        `[a${index}]`
-    );
-  });
+    // Audio processing
+    if (hasAudio) {
+      filterParts.push(
+        `[${index}:a:0]` +
+          `atrim=duration=${duration},` +
+          `asetpts=PTS-STARTPTS,` +
+          `volume=${volume}` +
+          `[a${index}]`
+      );
+    } else {
+      // Generate silent audio for videos without an audio stream
+      filterParts.push(
+        `anullsrc=channel_layout=stereo:sample_rate=44100,` +
+          `atrim=duration=${duration},` +
+          `asetpts=PTS-STARTPTS,` +
+          `volume=${volume}` +
+          `[a${index}]`
+      );
+    }
+  }
 
+  // Concatenate all clips
   const concatInputs = clips
     .map((_, index) => `[v${index}][a${index}]`)
     .join("");

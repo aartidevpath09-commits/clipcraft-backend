@@ -20,7 +20,7 @@ const timeline = {
           volume: 1,
         },
         {
-          inputPath: "./storage/clipC.mp4",
+          inputPath: "./storage/silent-test.mp4",
           start: 13,
           duration: 10,
           volume: 0,
