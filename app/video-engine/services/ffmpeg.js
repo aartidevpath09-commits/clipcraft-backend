@@ -162,6 +162,39 @@ function renderTimeline(clips, outputPath) {
   ]);
 }
 
+function applyTransform(
+  videoPath,
+  outputPath,
+  scale = 1,
+  x = 0,
+  y = 0
+) {
+  const safeScale = Math.max(0.1, Number(scale));
+  const safeX = Number(x);
+  const safeY = Number(y);
+
+  return runFFmpeg([
+    "-i",
+    videoPath,
+    "-filter_complex",
+    `[0:v]split[original][scaled];` +
+      `[scaled]scale=iw*${safeScale}:ih*${safeScale}[scaledvideo];` +
+      `[original][scaledvideo]overlay=${safeX}:${safeY}:shortest=1[outv]`,
+    "-map",
+    "[outv]",
+    "-map",
+    "0:a?",
+    "-c:v",
+    "libx264",
+    "-c:a",
+    "aac",
+    "-movflags",
+    "+faststart",
+    "-y",
+    outputPath,
+  ]);
+}
+
 function addImageOverlay(
   videoPath,
   imagePath,
@@ -202,5 +235,6 @@ module.exports = {
   splitVideo,
   reorderVideos,
   renderTimeline,
+  applyTransform,
   addImageOverlay,
 };
