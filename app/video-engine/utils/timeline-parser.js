@@ -11,17 +11,39 @@ function parseTimeline(timeline) {
     throw new Error("Video track not found");
   }
 
+    videoTrack.clips.forEach((clip, index) => {
+    if (!clip.assetId) {
+      throw new Error(`Clip ${index} is missing assetId`);
+    }
+
+    if (typeof clip.start !== "number" || clip.start < 0) {
+      throw new Error(`Invalid start time for clip ${index}`);
+    }
+
+    if (typeof clip.duration !== "number" || clip.duration <= 0) {
+      throw new Error(`Invalid duration for clip ${index}`);
+    }
+
+    if (
+      clip.volume !== undefined &&
+      (typeof clip.volume !== "number" || clip.volume < 0)
+    ) {
+      throw new Error(`Invalid volume for clip ${index}`);
+    }
+  });
+
   const sortedClips = [...videoTrack.clips].sort(
     (a, b) => a.start - b.start
   );
-
+  
+  
   return sortedClips.map((clip) => ({
     assetId: clip.assetId,
     start: clip.start,
     duration: clip.duration,
     volume: clip.volume ?? 1,
     transform: clip.transform || {
-      scale: 1,
+      scale: 0,
       x: 0,
       y: 0,
     },
