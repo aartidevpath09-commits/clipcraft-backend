@@ -7,9 +7,9 @@
     "test": "tests"
   },
   "scripts": {
-  "start": "node app/server.js",
-  "dev": "nodemon app/server.js"
-},
+    "start": "node app/server.js",
+    "dev": "nodemon app/server.js"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aartidevpath09-commits/clipcraft-backend.git"
@@ -27,6 +27,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "google-auth-library": "^11.0.2",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.0"
   },
