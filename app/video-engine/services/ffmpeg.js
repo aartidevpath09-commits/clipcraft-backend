@@ -151,7 +151,8 @@ function renderTimeline(clips, outputPath) {
     filterParts.push(
       `[${index}:a:0]` +
         `atrim=duration=${duration},` +
-        `asetpts=PTS-STARTPTS` +
+        `asetpts=PTS-STARTPTS,` +
+        `volume=${Math.max(0, Number(clip.volume ?? 1))}` +
         `[a${index}]`
     );
   });
@@ -252,6 +253,33 @@ function addImageOverlay(
   ]);
 }
 
+function adjustAudioVolume(
+  videoPath,
+  outputPath,
+  volume = 1
+) {
+  const safeVolume = Math.max(0, Number(volume));
+
+  return runFFmpeg([
+    "-i",
+    videoPath,
+    "-filter_complex",
+    `[0:a]volume=${safeVolume}[aout]`,
+    "-map",
+    "0:v",
+    "-map",
+    "[aout]",
+    "-c:v",
+    "libx264",
+    "-c:a",
+    "aac",
+    "-movflags",
+    "+faststart",
+    "-y",
+    outputPath,
+  ]);
+}
+
 module.exports = {
   runFFmpeg,
   runFFprobe,
@@ -261,4 +289,5 @@ module.exports = {
   renderTimeline,
   applyTransform,
   addImageOverlay,
+  adjustAudioVolume,
 };
