@@ -235,8 +235,15 @@ async function remove(req, res, next) {
   try {
     const asset = await loadOwnedAsset(req.params.id, req.devUser.userId);
 
-    await mediaAssets.deleteById(asset.id);
+    // Storage cleanup runs BEFORE the DB row is deleted, and its error is
+    // allowed to propagate (not swallowed): if deleteAssetDirectory throws,
+    // execution never reaches mediaAssets.deleteById, so the asset stays
+    // fully intact (row + files) rather than leaving an orphaned directory
+    // on disk with no DB row left to ever discover it by. The reverse order
+    // -- delete the row first -- can't safely recover from a storage
+    // failure, since nothing would reference this assetId anymore.
     await storage.deleteAssetDirectory(asset.id);
+    await mediaAssets.deleteById(asset.id);
 
     res.status(204).send();
   } catch (err) {
