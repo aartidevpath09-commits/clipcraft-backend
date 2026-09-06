@@ -2,6 +2,9 @@
 .env
 .env.*
 
+# Node.js
+node_modules/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -25,3 +28,4 @@ storage/*
 *.log
 node_modules/
 clipcraft_backup.sql
+*.log
