@@ -8,6 +8,9 @@
   },
   "scripts": {
     "start": "node app/server.js",
+    "dev": "nodemon app/server.js",
+    "migrate": "node app/db/migrate.js",
+    "test": "node --test"
     "dev": "nodemon app/server.js"
   },
   "repository": {
@@ -24,6 +27,7 @@
   "homepage": "https://github.com/aartidevpath09-commits/clipcraft-backend#readme",
   "dependencies": {
     "argon2": "^0.45.1",
+    "busboy": "^1.6.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
