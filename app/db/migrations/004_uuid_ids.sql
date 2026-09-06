@@ -66,6 +66,16 @@ BEGIN
     END IF;
 END $$;
 
+-- Handle existing media_assets -> projects foreign key
+-- before replacing the projects primary key.
+DO $$
+BEGIN
+    IF to_regclass('media_assets') IS NOT NULL THEN
+        ALTER TABLE media_assets
+        DROP CONSTRAINT IF EXISTS fk_media_assets_project;
+    END IF;
+END $$;
+
 -- Remove existing foreign keys
 ALTER TABLE accounts
 DROP CONSTRAINT fk_accounts_user;
@@ -132,6 +142,18 @@ ADD CONSTRAINT fk_projects_user
     FOREIGN KEY (user_id)
     REFERENCES users(id)
     ON DELETE CASCADE;
+
+-- Restore media_assets -> projects foreign key
+DO $$
+BEGIN
+    IF to_regclass('media_assets') IS NOT NULL THEN
+        ALTER TABLE media_assets
+        ADD CONSTRAINT fk_media_assets_project
+        FOREIGN KEY (project_id)
+        REFERENCES projects(id)
+        ON DELETE CASCADE;
+    END IF;
+END $$;
 
 -- Remove legacy integer columns after successful mapping
 ALTER TABLE users DROP COLUMN legacy_id;
