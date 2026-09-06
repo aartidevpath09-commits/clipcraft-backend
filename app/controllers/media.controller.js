@@ -69,12 +69,12 @@ function serializeAsset(asset) {
 
 async function upload(req, res, next) {
   try {
-    const parsed = await parseMediaUpload(req, req.devUser.id);
+    const parsed = await parseMediaUpload(req, req.devUser.userId);
 
     const asset = await mediaAssets.insert({
       id: parsed.assetId,
       projectId: parsed.projectId,
-      uploadedBy: req.devUser.id,
+      uploadedBy: req.devUser.userId,
       originalFilename: parsed.originalFilename,
       mediaType: parsed.mediaType,
       mimeType: parsed.mimeType,
@@ -118,7 +118,7 @@ async function list(req, res, next) {
     if (!projectId) {
       throw ApiError.badRequest("projectId query parameter is required");
     }
-    const assets = await fetchProjectMediaList(projectId, req.devUser.id);
+    const assets = await fetchProjectMediaList(projectId, req.devUser.userId);
     res.json({ assets });
   } catch (err) {
     next(err);
@@ -148,7 +148,7 @@ async function listByProject(req, res, next) {
 
 async function getOne(req, res, next) {
   try {
-    const asset = await loadOwnedAsset(req.params.id, req.devUser.id);
+    const asset = await loadOwnedAsset(req.params.id, req.devUser.userId);
     res.json({ asset: serializeAsset(asset) });
   } catch (err) {
     next(err);
@@ -157,7 +157,7 @@ async function getOne(req, res, next) {
 
 async function streamMedia(req, res, next) {
   try {
-    const asset = await loadOwnedAsset(req.params.id, req.devUser.id);
+    const asset = await loadOwnedAsset(req.params.id, req.devUser.userId);
 
     const variant = req.query.variant === "original" ? "original" : "auto";
     const useProxy = variant === "auto" && asset.proxy_status === "READY";
@@ -189,7 +189,7 @@ async function streamMedia(req, res, next) {
  */
 async function getProxy(req, res, next) {
   try {
-    const asset = await loadOwnedAsset(req.params.id, req.devUser.id);
+    const asset = await loadOwnedAsset(req.params.id, req.devUser.userId);
 
     if (asset.proxy_status !== "READY") {
       throw ApiError.notFound("Proxy is not available for this asset");
@@ -203,7 +203,7 @@ async function getProxy(req, res, next) {
 
 async function getThumbnail(req, res, next) {
   try {
-    const asset = await loadOwnedAsset(req.params.id, req.devUser.id);
+    const asset = await loadOwnedAsset(req.params.id, req.devUser.userId);
 
     if (asset.thumbnail_status !== "READY") {
       throw ApiError.notFound("Thumbnail is not available for this asset");
@@ -217,7 +217,7 @@ async function getThumbnail(req, res, next) {
 
 async function getWaveform(req, res, next) {
   try {
-    const asset = await loadOwnedAsset(req.params.id, req.devUser.id);
+    const asset = await loadOwnedAsset(req.params.id, req.devUser.userId);
 
     if (asset.waveform_status !== "READY") {
       throw ApiError.notFound("Waveform is not available for this asset");
@@ -233,7 +233,7 @@ async function getWaveform(req, res, next) {
 
 async function remove(req, res, next) {
   try {
-    const asset = await loadOwnedAsset(req.params.id, req.devUser.id);
+    const asset = await loadOwnedAsset(req.params.id, req.devUser.userId);
 
     await mediaAssets.deleteById(asset.id);
     await storage.deleteAssetDirectory(asset.id);

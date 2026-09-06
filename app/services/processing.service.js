@@ -34,11 +34,46 @@ function isWaveformApplicable(mediaType, hasAudio) {
   return mediaType === "audio" || (mediaType === "video" && Boolean(hasAudio));
 }
 
+/**
+ * Runs one derived-asset job (proxy/thumbnail/waveform), guarding against
+ * the asset being deleted while this background job is still in flight.
+ *
+ * DB status writes against an already-deleted row are harmless no-ops
+ * (UPDATE ... WHERE id = $1 just affects 0 rows) -- but a derived-asset
+ * *file* write is not harmless: generateProxy/generateThumbnail/
+ * generateWaveform all call ensureParentDir() first, which will happily
+ * recreate the asset's storage directory via `mkdir -p` even if
+ * deleteAssetDirectory() already removed it. Left unguarded, a delete that
+ * lands mid-job produces an orphaned file on disk that nothing will ever
+ * reference or clean up again, since the DB row is gone.
+ *
+ * Two checks close that window: skip starting the job at all if the asset
+ * is already gone (the common case, since ffmpeg/ffprobe work is what's
+ * slow), and if the asset was deleted while `run()` was writing its
+ * output, remove that output immediately afterward instead of keeping it.
+ */
 async function runDerivedJob({ assetId, kind, run }) {
+  const stillExistsBefore = await mediaAssets.findById(assetId);
+  if (!stillExistsBefore) {
+    console.warn(
+      `[processing] skipping ${kind} for asset ${assetId}: asset was deleted before this job started`
+    );
+    return;
+  }
+
   try {
     await mediaAssets.setDerivedStatus(assetId, kind, "PROCESSING");
     const storageKey = await run();
-    await mediaAssets.setDerivedStatus(assetId, kind, "READY", null, storageKey);
+    const updated = await mediaAssets.setDerivedStatus(assetId, kind, "READY", null, storageKey);
+    if (!updated) {
+      // The row was deleted while run() was writing its output file --
+      // that file is now an orphan (recreated the just-deleted asset
+      // directory via ensureParentDir); remove it rather than leave it.
+      console.warn(
+        `[processing] asset ${assetId} was deleted mid-${kind}; removing orphaned output instead of keeping it`
+      );
+      await storage.deleteKey(storageKey).catch(() => {});
+    }
   } catch (err) {
     console.error(`[processing] ${kind} failed for asset ${assetId}:`, err.message);
     await mediaAssets

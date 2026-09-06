@@ -44,4 +44,41 @@ describe("storage.service", () => {
     );
     assert.equal(await storage.exists(key), false);
   });
+
+  test("deleteAssetDirectory refuses unsafe assetIds instead of resolving to the storage root or escaping it", async () => {
+    // "." is the dangerous one: resolveAbsolutePath(".") resolves to
+    // STORAGE_ROOT itself (it doesn't "escape" the root, it *is* the root),
+    // so without its own UUID check, deleteAssetDirectory(".") would
+    // recursively remove the entire storage root.
+    for (const unsafeId of [".", "..", "", "../outside", "abc/../../etc", "not-a-uuid"]) {
+      await assert.rejects(
+        () => storage.deleteAssetDirectory(unsafeId),
+        /invalid assetId|escapes storage root|non-empty string/,
+        `expected deleteAssetDirectory(${JSON.stringify(unsafeId)}) to reject`
+      );
+    }
+
+    // A real, valid asset directory must still delete normally.
+    const id = crypto.randomUUID();
+    const key = storage.originalKey(id, ".mp4");
+    await storage.saveStream(key, Readable.from([Buffer.from("hello")]));
+    await storage.deleteAssetDirectory(id);
+    assert.equal(await storage.exists(key), false);
+  });
+
+  test("deleteKey removes a single file without touching the rest of the asset directory", async () => {
+    const id = crypto.randomUUID();
+    const originalKey = storage.originalKey(id, ".mp4");
+    const proxyKey = storage.derivedKey(id, "proxy");
+
+    await storage.saveStream(originalKey, Readable.from([Buffer.from("original")]));
+    await storage.saveStream(proxyKey, Readable.from([Buffer.from("proxy")]));
+
+    await storage.deleteKey(proxyKey);
+
+    assert.equal(await storage.exists(proxyKey), false);
+    assert.equal(await storage.exists(originalKey), true);
+
+    await storage.deleteAssetDirectory(id);
+  });
 });

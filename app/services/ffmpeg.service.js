@@ -6,6 +6,16 @@
  * Every invocation uses child_process.execFile with an argument array (never
  * a shell), and failures are normalized into FfmpegError with a safe,
  * generic message -- raw stderr is never forwarded to API clients.
+ *
+ * Every function here takes absolute filesystem paths, not storage keys --
+ * this is intentional, not local-filesystem coupling that needs fixing.
+ * ffmpeg is a native process with no stream-based way to accept an
+ * arbitrary input/output; it needs a real, seekable file on disk. Callers
+ * get that path from storage.service.js's resolveAbsolutePath() (see its
+ * doc comment), which is the one place a future S3-backed storage
+ * implementation would stage an object to a local temp file -- these
+ * functions' signatures are already the right shape for that swap and are
+ * not expected to change when it happens.
  */
 
 const fs = require("fs");

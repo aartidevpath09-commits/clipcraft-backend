@@ -43,10 +43,10 @@ async function createProject(req, res, next) {
     const projectId = crypto.randomUUID();
     await pool.query(
       "INSERT INTO dev_projects (id, owner_id, name) VALUES ($1, $2, $3)",
-      [projectId, req.devUser.id, name]
+      [projectId, req.devUser.userId, name]
     );
 
-    return res.status(201).json({ id: projectId, ownerId: req.devUser.id, name });
+    return res.status(201).json({ id: projectId, ownerId: req.devUser.userId, name });
   } catch (err) {
     next(err);
   }
@@ -56,7 +56,7 @@ async function listProjects(req, res, next) {
   try {
     const result = await pool.query(
       "SELECT id, name, created_at FROM dev_projects WHERE owner_id = $1 ORDER BY created_at DESC",
-      [req.devUser.id]
+      [req.devUser.userId]
     );
     return res.json({ projects: result.rows });
   } catch (err) {
@@ -75,7 +75,7 @@ async function deleteProject(req, res, next) {
   try {
     const { id: projectId } = req.params;
 
-    const ownership = await checkProjectOwnership(projectId, req.devUser.id);
+    const ownership = await checkProjectOwnership(projectId, req.devUser.userId);
     if (!ownership.exists) {
       return res.status(404).json({ error: "NOT_FOUND", message: "Project not found" });
     }

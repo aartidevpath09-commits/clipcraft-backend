@@ -14,8 +14,12 @@ const app = require("../app/server");
 /**
  * Sprint 2: project/user ownership boundaries around media, the project
  * media-bin listing endpoint, and the project-deletion cleanup integration
- * point for Member 1. Every test cleans up the rows/files it creates.
+ * point for Member 1.
  */
+
+// Tracked and deleted by exact id in after() -- see the matching comment in
+// tests/api.test.js for why this is scoped per-id rather than a TRUNCATE.
+const createdUserIds = [];
 
 let server;
 let baseUrl;
@@ -54,6 +58,7 @@ async function createUserAndProject(displayName) {
   const login = await jsonRequest("POST", "/api/v1/dev/login", { body: { displayName } });
   const token = login.json.token;
   const userId = login.json.userId;
+  createdUserIds.push(userId);
   const project = await jsonRequest("POST", "/api/v1/dev/projects", {
     token,
     body: { name: `${displayName}'s project` },
@@ -65,6 +70,9 @@ async function waitUntilProcessed(token, assetId, timeoutMs = 15000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const { json } = await jsonRequest("GET", `/api/v1/media/${assetId}`, { token });
+    if (!json?.asset) {
+      throw new Error(`Invalid media status response: ${JSON.stringify(json)}`);
+    }
     const a = json.asset;
     if (a.status === "READY" || a.status === "FAILED") {
       const derivedSettled = [a.proxy.status, a.thumbnail.status, a.waveform.status].every(
@@ -87,6 +95,9 @@ describe("Project-scoped media API (Sprint 2 integration)", () => {
 
   after(async () => {
     await new Promise((resolve) => server.close(resolve));
+    if (createdUserIds.length > 0) {
+      await pool.query("DELETE FROM dev_users WHERE id = ANY($1::uuid[])", [createdUserIds]);
+    }
     await pool.end();
   });
 

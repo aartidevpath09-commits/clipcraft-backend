@@ -54,13 +54,16 @@ function devAuthRequired(req, res, next) {
 
   try {
     const payload = jwt.verify(token, DEV_AUTH_JWT_SECRET);
-    req.devUser = { id: payload.sub };
+    req.devUser = { userId: payload.sub };
     // Sprint 3: also expose the identity as `req.user`, the field name
     // Member 1's real auth middleware (authenticateToken) is expected to
     // set (see requireProjectAccess.js and the Sprint 3 flow diagram in
     // MEMBER2_SPRINT3.md). Same object, two names -- purely so new Sprint 3
-    // code can be written once against `req.user.id` and keep working
+    // code can be written once against `req.user.userId` and keep working
     // unchanged the moment this file is deleted in favor of the real thing.
+    // (Standardized from `req.user.id` to `req.user.userId` to match
+    // Member 1's real auth middleware, which decodes its JWT as
+    // `{ userId, email }` and never sets `.id`.)
     req.user = req.devUser;
     next();
   } catch {

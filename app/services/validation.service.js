@@ -49,6 +49,19 @@ function isRiffWithForm(buf, form) {
   );
 }
 
+// ADTS: the framing used by a *raw* AAC elementary stream (a ".aac" file
+// with no MP4/ISO-BMFF container). Distinct from .m4a, which is AAC audio
+// inside an ISO-BMFF container and therefore has a "ftyp" box like any
+// other MP4-family file. A 12-bit all-ones syncword: byte 0 is 0xFF and the
+// top 4 bits of byte 1 are also 1 (0xF0..0xFF) -- the ADTS header's sync +
+// MPEG-version + layer bits. This is a framing check, not a full parse, so
+// (as with the existing MP3 frame-sync check above) it only needs to
+// corroborate a file already claiming to be ".aac" with MIME "audio/aac" --
+// it doesn't need to uniquely fingerprint AAC from nothing.
+function isAdtsAac(buf) {
+  return buf.length >= 2 && buf[0] === 0xff && (buf[1] & 0xf0) === 0xf0;
+}
+
 const MEDIA_TYPES = [
   {
     category: "video",
@@ -129,11 +142,26 @@ const MEDIA_TYPES = [
     matchesMagic: (buf) => isRiffWithForm(buf, "WAVE"),
   },
   {
+    // M4A: AAC audio inside an ISO-BMFF (MP4-family) container -- has a
+    // "ftyp" box like any other MP4-family file, so it's checked the same
+    // way as the video ISO-BMFF formats above.
     category: "audio",
-    key: "aac-m4a",
-    extensions: [".m4a", ".aac"],
-    mimeTypes: ["audio/mp4", "audio/x-m4a", "audio/aac"],
+    key: "m4a",
+    extensions: [".m4a"],
+    mimeTypes: ["audio/mp4", "audio/x-m4a"],
     matchesMagic: (buf) => isIsoBmff(buf),
+  },
+  {
+    // Raw AAC (ADTS elementary stream, no container) -- a genuinely
+    // different file format from .m4a despite the shared "AAC" name, so it
+    // gets its own signature check (see isAdtsAac above). Previously this
+    // was incorrectly grouped with .m4a under the ISO-BMFF check, which
+    // means no real raw .aac file could ever have passed validation.
+    category: "audio",
+    key: "aac",
+    extensions: [".aac"],
+    mimeTypes: ["audio/aac"],
+    matchesMagic: isAdtsAac,
   },
   {
     category: "audio",

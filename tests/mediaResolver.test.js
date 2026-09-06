@@ -29,17 +29,27 @@ const { RESOLUTION_STATUS } = resolver;
  */
 
 describe("mediaResolver.service (Sprint 3 contract)", () => {
+  // Tracked and deleted by exact id in after() -- see the matching comment
+  // in tests/api.test.js for why this is scoped per-id rather than a
+  // TRUNCATE (node --test runs this file concurrently with the other test
+  // files against the same shared development database).
+  const createdUserIds = [];
+
   before(async () => {
     await runMigrations();
   });
 
   after(async () => {
+    if (createdUserIds.length > 0) {
+      await pool.query("DELETE FROM dev_users WHERE id = ANY($1::uuid[])", [createdUserIds]);
+    }
     await pool.end();
   });
 
   async function createUser() {
     const id = crypto.randomUUID();
     await pool.query("INSERT INTO dev_users (id, display_name) VALUES ($1, $2)", [id, "Resolver Test User"]);
+    createdUserIds.push(id);
     return id;
   }
 

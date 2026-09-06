@@ -25,6 +25,7 @@ const SPECS = [
   { name: "sample.mp3", args: (out) => audioArgs("libmp3lame", out) },
   { name: "sample.wav", args: (out) => audioArgs(null, out) },
   { name: "sample.m4a", args: (out) => audioArgs("aac", out) },
+  { name: "sample.aac", args: (out) => rawAacArgs(out) },
   { name: "sample.ogg", args: (out) => audioArgs("libvorbis", out) },
 ];
 
@@ -49,6 +50,11 @@ function audioArgs(codec, out) {
   if (codec) args.push("-c:a", codec);
   args.push(out);
   return args;
+}
+
+/** Raw AAC (ADTS elementary stream, no MP4/ISO-BMFF container) -- distinct from sample.m4a. */
+function rawAacArgs(out) {
+  return ["-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-c:a", "aac", "-f", "adts", out];
 }
 
 let cached = null;

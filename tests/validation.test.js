@@ -32,6 +32,7 @@ describe("validation.service", () => {
     ["sample.mp3", "audio/mpeg", "audio"],
     ["sample.wav", "audio/wav", "audio"],
     ["sample.m4a", "audio/mp4", "audio"],
+    ["sample.aac", "audio/aac", "audio"],
     ["sample.ogg", "audio/ogg", "audio"],
   ];
 
@@ -56,6 +57,28 @@ describe("validation.service", () => {
       sizeBytes: 1000,
     });
     assert.equal(result.ok, false);
+  });
+
+  test("distinguishes raw AAC (.aac, ADTS) from container AAC (.m4a, ISO-BMFF) -- neither file passes as the other's extension", () => {
+    // A real M4A file (ISO-BMFF container) declared/renamed as .aac must
+    // fail: it has no ADTS syncword, it has a "ftyp" box instead.
+    const m4aAsAac = validateUpload({
+      originalFilename: "renamed.aac",
+      declaredMimeType: "audio/aac",
+      headerBytes: headerBytesOf(fixtures["sample.m4a"]),
+      sizeBytes: fs.statSync(fixtures["sample.m4a"]).size,
+    });
+    assert.equal(m4aAsAac.ok, false);
+
+    // A real raw AAC (ADTS) file declared/renamed as .m4a must fail: it has
+    // no "ftyp" box, ADTS has no container at all.
+    const aacAsM4a = validateUpload({
+      originalFilename: "renamed.m4a",
+      declaredMimeType: "audio/mp4",
+      headerBytes: headerBytesOf(fixtures["sample.aac"]),
+      sizeBytes: fs.statSync(fixtures["sample.aac"]).size,
+    });
+    assert.equal(aacAsM4a.ok, false);
   });
 
   test("rejects extension/MIME mismatch", () => {

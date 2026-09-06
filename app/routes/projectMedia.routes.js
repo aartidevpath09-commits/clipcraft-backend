@@ -11,7 +11,7 @@
  * bare /:projectId request.
  *
  * Sprint 3: authorization now follows the expected
- * authenticateToken -> req.user.id -> requireProjectAccess -> req.project
+ * authenticateToken -> req.user.userId -> requireProjectAccess -> req.project
  * flow (see app/middleware/requireProjectAccess.js) instead of the
  * controller re-deriving ownership itself.
  */

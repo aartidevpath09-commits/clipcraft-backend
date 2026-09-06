@@ -33,6 +33,26 @@ describe("waveform.service", () => {
     assert.ok(wf.peaks.some((p) => p !== 0));
   });
 
+  test("still produces sane peaks when duration is unknown/zero (streaming accumulator's growth path)", async () => {
+    // durationSeconds=0 is what processing.service.js actually passes when
+    // ffprobe couldn't determine a duration (`metadata.durationSeconds || 0`).
+    // The peak accumulator can't pre-size its buckets from a known duration
+    // in that case, so it starts at the finest resolution and merges
+    // buckets down as real samples arrive -- this exercises that path
+    // specifically, rather than the common "duration known up front" path
+    // the other tests above already cover.
+    const out = path.join(outDir, "unknown-duration.json");
+    await generateWaveform(fixtures["sample.mp3"], out, 0);
+
+    const wf = JSON.parse(fs.readFileSync(out, "utf8"));
+    assert.ok(wf.bucketCount >= 1);
+    assert.equal(wf.peaks.length, wf.bucketCount * 2);
+    assert.ok(wf.peaks.every((p) => p >= -1 && p <= 1));
+    assert.ok(wf.peaks.some((p) => p !== 0));
+    // durationSeconds falls back to the actual decoded length (~2s fixture).
+    assert.ok(wf.durationSeconds > 1 && wf.durationSeconds < 4);
+  });
+
   test("rejects a video with no audio track", async () => {
     const out = path.join(outDir, "silent.json");
     await assert.rejects(

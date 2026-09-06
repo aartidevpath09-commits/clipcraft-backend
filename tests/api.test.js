@@ -15,9 +15,17 @@ let server;
 let baseUrl;
 const fixtures = ensureFixtures();
 
-// Every test cleans up the dev_users/dev_projects/media_assets rows it
-// creates via /api/v1/dev/* + the API itself, so this suite is safe to run
-// against a shared development database.
+// Every dev_user created below is tracked here and deleted by exact id in
+// after() (which cascades to its dev_projects/media_assets rows -- see the
+// FKs in app/db/migrations/001_dev_placeholder_auth.sql and
+// 003_media_assets_project_fk.sql). This is deliberately NOT a blanket
+// TRUNCATE: node --test runs each test *file* as its own concurrent child
+// process against the same shared development database (see
+// tests/helpers/testEnv.js), so a TRUNCATE here could delete rows another
+// test file is still using mid-run. Deleting only the specific ids this
+// file created is safe under that concurrency because ids are random
+// UUIDs that never collide across files.
+const createdUserIds = [];
 
 async function jsonRequest(method, urlPath, { token, body } = {}) {
   const headers = { "Content-Type": "application/json" };
@@ -58,6 +66,7 @@ async function createUserAndProject(displayName) {
   const login = await jsonRequest("POST", "/api/v1/dev/login", { body: { displayName } });
   const token = login.json.token;
   const userId = login.json.userId;
+  createdUserIds.push(userId);
   const project = await jsonRequest("POST", "/api/v1/dev/projects", {
     token,
     body: { name: `${displayName}'s project` },
@@ -69,6 +78,9 @@ async function waitUntilProcessed(token, assetId, timeoutMs = 15000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const { json } = await jsonRequest("GET", `/api/v1/media/${assetId}`, { token });
+    if (!json?.asset) {
+      throw new Error(`Invalid media status response: ${JSON.stringify(json)}`);
+    }
     const a = json.asset;
     if (a.status === "READY" || a.status === "FAILED") {
       const derivedSettled = [a.proxy.status, a.thumbnail.status, a.waveform.status].every(
@@ -91,6 +103,9 @@ describe("Media Management API (integration)", () => {
 
   after(async () => {
     await new Promise((resolve) => server.close(resolve));
+    if (createdUserIds.length > 0) {
+      await pool.query("DELETE FROM dev_users WHERE id = ANY($1::uuid[])", [createdUserIds]);
+    }
     await pool.end();
   });
 
@@ -173,6 +188,47 @@ describe("Media Management API (integration)", () => {
     assert.equal(await storage.exists(`${assetId}/proxy.mp4`), false);
     assert.equal(await storage.exists(`${assetId}/thumbnail.jpg`), false);
     assert.equal(await storage.exists(`${assetId}/waveform.json`), false);
+  });
+
+  test("deleting an asset immediately after upload leaves no orphaned derived files once background processing catches up", async () => {
+    // Regression test for the upload/processing/delete race (code review
+    // section 4.2): background proxy/thumbnail/waveform processing is
+    // enqueued fire-and-forget right after upload (see
+    // app/services/processingQueue.service.js) and is almost certainly
+    // still in flight the instant this DELETE lands -- which is exactly
+    // the scenario processing.service.js's runDerivedJob() now guards
+    // against (see its own comment for the mechanism).
+    const { token, projectId } = await createUserAndProject("RaceConditionUser");
+
+    const upload = await uploadFile({
+      token,
+      projectId,
+      filePath: fixtures["sample.mp4"],
+      mimeType: "video/mp4",
+    });
+    assert.equal(upload.status, 201);
+    const assetId = upload.json.asset.id;
+
+    const deleteRes = await fetch(`${baseUrl}/api/v1/media/${assetId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(deleteRes.status, 204);
+
+    // Give any still-in-flight background job (ffprobe + up to three ffmpeg
+    // invocations against a 2-second synthetic fixture) time to finish.
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    // The asset directory must stay gone -- including derived files a
+    // still-running job could otherwise have written back into existence
+    // (via ensureParentDir's mkdir -p) after this DELETE already removed it.
+    assert.equal(await storage.exists(`${assetId}/original.mp4`), false);
+    assert.equal(await storage.exists(`${assetId}/proxy.mp4`), false);
+    assert.equal(await storage.exists(`${assetId}/thumbnail.jpg`), false);
+    assert.equal(await storage.exists(`${assetId}/waveform.json`), false);
+
+    const afterDelete = await jsonRequest("GET", `/api/v1/media/${assetId}`, { token });
+    assert.equal(afterDelete.status, 404);
   });
 
   test("enforces project ownership: 403 for a different user, 404 for a nonexistent project", async () => {
