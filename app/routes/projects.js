@@ -1,6 +1,9 @@
 const express = require("express");
 const pool = require("../config/db");
 const authMiddleware = require("../middleware/authMiddleware");
+const {
+  deleteAllMediaForProject,
+} = require("../services/projectMediaCleanup.service");
 
 const router = express.Router();
 
@@ -20,12 +23,7 @@ router.post("/", authMiddleware, async (req, res) => {
        VALUES ($1, $2, $3, $4)
        RETURNING id, user_id, title, aspect_ratio, fps,
                  timeline_json, revision, created_at, updated_at`,
-      [
-        req.user.userId,
-        title,
-        aspect_ratio || "16:9",
-        fps || 30,
-      ]
+      [req.user.userId, title, aspect_ratio || "16:9", fps || 30]
     );
 
     return res.status(201).json({
@@ -142,12 +140,7 @@ router.put("/:id/timeline", authMiddleware, async (req, res) => {
          AND revision = $4
        RETURNING id, user_id, title, aspect_ratio, fps,
                  timeline_json, revision, created_at, updated_at`,
-      [
-        timeline_json,
-        req.params.id,
-        req.user.userId,
-        revision,
-      ]
+      [timeline_json, req.params.id, req.user.userId, revision]
     );
 
     if (result.rows.length === 0) {
@@ -183,13 +176,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
        WHERE id = $4 AND user_id = $5
        RETURNING id, user_id, title, aspect_ratio, fps,
                  timeline_json, revision, created_at, updated_at`,
-      [
-        title,
-        aspect_ratio,
-        fps,
-        req.params.id,
-        req.user.userId,
-      ]
+      [title, aspect_ratio, fps, req.params.id, req.user.userId]
     );
 
     if (result.rows.length === 0) {
@@ -214,18 +201,29 @@ router.put("/:id", authMiddleware, async (req, res) => {
 // Delete project
 router.delete("/:id", authMiddleware, async (req, res) => {
   try {
-    const result = await pool.query(
-      `DELETE FROM projects
-       WHERE id = $1 AND user_id = $2
-       RETURNING id`,
+    // First verify that the project exists and belongs to the logged-in user
+    const projectResult = await pool.query(
+      `SELECT id
+       FROM projects
+       WHERE id = $1 AND user_id = $2`,
       [req.params.id, req.user.userId]
     );
 
-    if (result.rows.length === 0) {
+    if (projectResult.rows.length === 0) {
       return res.status(404).json({
         message: "Project not found",
       });
     }
+
+    // Delete all media associated with the project first
+    await deleteAllMediaForProject(req.params.id);
+
+    // Then delete the project itself
+    await pool.query(
+      `DELETE FROM projects
+       WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.userId]
+    );
 
     return res.status(200).json({
       message: "Project deleted successfully",

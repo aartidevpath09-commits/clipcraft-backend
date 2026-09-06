@@ -103,6 +103,10 @@ async function ensureParentDir(absolutePath) {
 }
 
 /**
+ * Pipe a readable stream into storage at `storageKey`. Resolves with bytes
+ * written. If `maxBytes` is given and the stream exceeds it, the partial
+ * file is removed and the promise rejects with an Error tagged
+ * `err.code === "MAX_BYTES_EXCEEDED"`.
  * Resolves once `writeStream` has actually released its file descriptor
  * (the `close` event), or after a short grace period if `close` never
  * fires for some reason. Deleting a file before its write handle is truly
@@ -150,6 +154,17 @@ function saveStream(storageKey, readableStream, maxBytes) {
         let bytesWritten = 0;
         let aborted = false;
 
+        readableStream.on("data", (chunk) => {
+          bytesWritten += chunk.length;
+          if (typeof maxBytes === "number" && bytesWritten > maxBytes && !aborted) {
+            aborted = true;
+            const err = new Error(`Stream exceeded maxBytes (${maxBytes})`);
+            err.code = "MAX_BYTES_EXCEEDED";
+            readableStream.unpipe(writeStream);
+            readableStream.destroy();
+            writeStream.destroy();
+            fsp.unlink(absolutePath).catch(() => {});
+            reject(err);
         function cleanupAndReject(err) {
           if (aborted) return;
           aborted = true;
@@ -184,6 +199,16 @@ function saveStream(storageKey, readableStream, maxBytes) {
         });
 
         readableStream.on("error", (err) => {
+          if (aborted) return;
+          writeStream.destroy();
+          fsp.unlink(absolutePath).catch(() => {});
+          reject(err);
+        });
+
+        writeStream.on("error", (err) => {
+          if (aborted) return;
+          fsp.unlink(absolutePath).catch(() => {});
+          reject(err);
           cleanupAndReject(err);
         });
 
@@ -219,6 +244,8 @@ async function stat(storageKey) {
   return fsp.stat(resolveAbsolutePath(storageKey));
 }
 
+/** Remove the entire directory for a media asset (original + all derived assets). */
+async function deleteAssetDirectory(assetId) {
 /**
  * Remove the entire directory for a media asset (original + all derived
  * assets). This is a recursive `rm`, so it must never be trusted to run

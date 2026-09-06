@@ -26,3 +26,6 @@ storage/*
 
 # Logs
 *.log
+node_modules/
+clipcraft_backup.sql
+*.log
