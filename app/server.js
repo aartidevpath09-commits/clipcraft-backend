@@ -13,17 +13,25 @@ const mediaRoutes = require("./routes/media.routes");
 const projectMediaRoutes = require("./routes/projectMedia.routes"); // Sprint 2
 const { errorHandler, notFoundHandler } = require("./middleware/errorHandler");
 // -----------------------------------------------------------------------------
+const authRoutes = require("./routes/auth");
+const projectRoutes = require("./routes/projects");
+const videoRoutes = require("./video-engine/routes");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
+app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/projects", projectRoutes);
+app.use("/api/v1/video", videoRoutes);
+
 app.get("/", (req, res) => {
   res.json({
     message: "ClipCraft Backend is running"
   });
 });
+
 app.get("/api/v1/health", async (req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
