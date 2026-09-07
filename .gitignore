@@ -24,3 +24,6 @@ storage/*
 # Logs
 *.log
 node_modules/
+
+# Video test/output files
+*.mp4
