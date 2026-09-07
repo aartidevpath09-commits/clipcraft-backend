@@ -2,6 +2,9 @@
 .env
 .env.*
 
+# Node.js
+node_modules/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -27,3 +30,5 @@ node_modules/
 
 # Video test/output files
 *.mp4
+clipcraft_backup.sql
+*.log
